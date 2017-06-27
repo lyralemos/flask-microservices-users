@@ -5,12 +5,7 @@ from project.tests.base import BaseTestCase
 
 from project import db
 from project.api.models import User
-
-def add_user(username, email, created_at=datetime.datetime.now()):
-    user = User(username=username, email=email, created_at=created_at)
-    db.session.add(user)
-    db.session.commit()
-    return user
+from project.tests.utils import add_user
 
 class TestUserService(BaseTestCase):
     """Tests for the Users Service."""
@@ -29,6 +24,7 @@ class TestUserService(BaseTestCase):
                 '/users',
                 data=json.dumps(dict(
                     username='michael',
+                    password='test',
                     email='michael@realpython.com'
                 )),
                 content_type='application/json',
@@ -56,7 +52,10 @@ class TestUserService(BaseTestCase):
         with self.client:
             response = self.client.post(
                 '/users',
-                data=json.dumps(dict(email='michael@realpython.com')),
+                data=json.dumps(dict(
+                    password='test',
+                    email='michael@realpython.com',
+                )),
                 content_type='application/json',
             )
             data = json.loads(response.data.decode())
@@ -64,13 +63,14 @@ class TestUserService(BaseTestCase):
             self.assertIn('Invalid payload.', data['message'])
             self.assertIn('fail', data['status'])
 
-    def test_add_user_duplicate_user(self):
+    def test_add_user_duplicate_email(self):
         """Ensure error is thrown if the email already exists."""
         with self.client:
             self.client.post(
                 '/users',
                 data=json.dumps(dict(
                     username='michael',
+                    password='test',
                     email='michael@realpython.com'
                 )),
                 content_type='application/json',
@@ -79,6 +79,7 @@ class TestUserService(BaseTestCase):
                 '/users',
                 data=json.dumps(dict(
                     username='michael',
+                    password='test',
                     email='michael@realpython.com'
                 )),
                 content_type='application/json',
@@ -124,7 +125,7 @@ class TestUserService(BaseTestCase):
 
     def test_single_user(self):
         """Ensure get single user behaves correctly."""
-        user = add_user('michael', 'michael@realpython.com')
+        user = add_user('michael', 'michael@realpython.com', 'test')
         with self.client:
             response = self.client.get(f'/users/{user.id}')
             data = json.loads(response.data.decode())
@@ -137,8 +138,8 @@ class TestUserService(BaseTestCase):
     def test_all_users(self):
         """Ensure get all users behaves correctly."""
         created = datetime.datetime.now() + datetime.timedelta(-30)
-        add_user('michael', 'michael@realpython.com', created)
-        add_user('fletcher', 'fletcher@realpython.com')
+        add_user('michael', 'michael@realpython.com', 'test', created)
+        add_user('fletcher', 'fletcher@realpython.com', 'test')
         with self.client:
             response = self.client.get('/users')
             data = json.loads(response.data.decode())
@@ -153,3 +154,18 @@ class TestUserService(BaseTestCase):
             self.assertIn(
                 'fletcher@realpython.com', data['data']['users'][0]['email'])
             self.assertIn('success', data['status'])
+
+    def test_add_user_invalid_json_keys_no_password(self):
+        """Ensure error is thrown if the JSON object does not have a password key."""
+        with self.client:
+            response = self.client.post(
+                '/users',
+                data=json.dumps(dict(
+                    username='michael',
+                    email='michael@realpython.com')),
+                content_type='application/json',
+            )
+            data = json.loads(response.data.decode())
+            self.assertEqual(response.status_code, 400)
+            self.assertIn('Invalid payload.', data['message'])
+            self.assertIn('fail', data['status'])
